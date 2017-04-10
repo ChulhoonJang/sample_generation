@@ -1,0 +1,5 @@
+packages/
+x64/
+sample_generation.opensdf
+sample_generation.sdf
+*.user
