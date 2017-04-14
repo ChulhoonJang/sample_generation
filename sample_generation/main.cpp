@@ -58,6 +58,12 @@ bool draw_annotations(const char * file_name, Size sz, Mat & dst, string attribu
 	return true;
 }
 
+void write_samples_on_csv(ofstream & csv_file, vector<Rect> & values, int n_class){
+	for (vector<Rect>::iterator it = values.begin(); it != values.end(); it++){
+		csv_file << n_class <<","<< it->x << "," << it->y << "," << it->width << "," << it->height << endl;
+	}
+}
+
 int main(int argc, char *argv[], char *envp[])
 {
 	string root;
@@ -67,8 +73,10 @@ int main(int argc, char *argv[], char *envp[])
 	//Rect rect_ego(74, 54, 156, 52);
 	Rect rect_ego(77, 50, 157, 59);
 
-	if (argc < 1) return 0;
+	if (argc < 2) return 0;
 	root = argv[1];	
+	patch_x = atoi(argv[2]);
+	patch_y = atoi(argv[2]);
 
 	image_dir = root + "/images";
 	annotation_dir = root + "/annotations";
@@ -78,16 +86,16 @@ int main(int argc, char *argv[], char *envp[])
 	map<string, annotated_class*> ptr_class;
 	annotated_class* c;
 
-	c = new annotated_class(root, "marker");
+	c = new annotated_class(root, "marker", 1);
 	ptr_class.insert(pair<string, annotated_class*>("marker", c));
 
-	c = new annotated_class(root, "vehicle");
+	c = new annotated_class(root, "vehicle", 2);
 	ptr_class.insert(pair<string, annotated_class*>("vehicle", c));	
 
-	c = new annotated_class(root, "curb");
+	c = new annotated_class(root, "curb", 3);
 	ptr_class.insert(pair<string, annotated_class*>("curb", c));	
 	
-	annotated_class free_space(root, "free_space", true);
+	annotated_class free_space(root, "free_space", 0, true);
 
 	FileStorage f_info;
 	string frame_yml = annotation_dir + "/frame.yml";
@@ -101,29 +109,32 @@ int main(int argc, char *argv[], char *envp[])
 		int frame = (*f_it);
 
 		// load image
+		Mat img, img_debug;
 		char image_path[100];
 		sprintf_s(image_path, 100, "%s/%08d.jpg", image_dir.c_str(), frame);
-
-		FileStorage fr;
-		
-		Mat img, img_debug;
 		img = imread(image_path);
 		if (img.data == NULL) continue;
 		img_debug = img.clone();
 		rectangle(img_debug, rect_ego, CV_RGB(255, 0, 0));
 
-		Mat img_mask = Mat::zeros(img.size(), CV_8UC1);
+		// open csv
+		char temp[100];
+		ofstream csv_file;
+		sprintf_s(temp, 100, "%s/%08d.csv", saved_dir.c_str(), frame);
+		csv_file.open(temp, ios::out | ios::ate | ios::app);
+
+		Mat img_mask = Mat::zeros(img.size(), CV_8UC1);				
 		for (map<string,annotated_class*>::iterator it = ptr_class.begin(); it != ptr_class.end(); it++){			
 			annotated_class* it_class = it->second;			
 			draw_annotations(it_class->get_file_path(frame).c_str(), img.size(), it_class->img_mask, it_class->get_attribute());
 			if (it->first == "marker"){
-				Rect roi((patch_x - roi_x + 1) / 2, (patch_y - roi_y + 1) / 2, roi_x, roi_y);
-				it_class->generate_samples(img, Size(patch_x, patch_y), 0.75, roi);
+				Rect roi((patch_x - roi_x + 1) / 2, (patch_y - roi_y + 1) / 2, roi_x, roi_y);			
+				it_class->generate_samples(img, Size(patch_x, patch_y), 0.75, roi);				
 			}
-			else{
-				it_class->generate_samples(img, Size(patch_x, patch_y), 0.75);
+			else{				
+				it_class->generate_samples(img, Size(patch_x, patch_y), 0.75);				
 			}
-
+			write_samples_on_csv(csv_file, it_class->samples, it_class->n_class);
 			if ((it->second)->img_mask.data != NULL) bitwise_or(img_mask, (it->second)->img_mask, img_mask);
 		}
 		Rect ego_vehicle_mask = Rect(rect_ego.x + patch_x / 2, rect_ego.y + patch_y / 2, rect_ego.width - patch_x, rect_ego.height - patch_y);
@@ -131,7 +142,8 @@ int main(int argc, char *argv[], char *envp[])
 		img_ego_mask = 255;
 
 		free_space.img_mask = ~img_mask.clone();
-		free_space.generate_random_samples(img, Size(patch_x, patch_y), 1.0, 3000);
+		free_space.generate_random_samples(img, Size(patch_x, patch_y), 1.0, 1000);
+		write_samples_on_csv(csv_file, free_space.samples, free_space.n_class);
 
 		cout << image_path << endl;
 	}
