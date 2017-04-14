@@ -31,6 +31,22 @@ void import_annotation(FileStorage & f, string name){
 	}
 }
 
+void import_annotation(FileNode & fn, string name){
+	FileNodeIterator it = fn.begin(), it_end = fn.end();
+
+	polygon_groups.clear();
+	for (int idx = 0; it != it_end; ++it, idx++){
+		vector<Point> p;
+		vector<int> x_val, y_val;
+		(*it)["x"] >> x_val;
+		(*it)["y"] >> y_val;
+		for (int i = 0; i<(int)x_val.size(); i++){
+			p.push_back(Point(x_val[i], y_val[i]));
+		}
+		if (!p.empty()) polygon_groups.push_back(p);
+	}
+}
+
 void generate_polygon_mask(Mat src, Mat & dst, vector<Point> poly){
 	Mat img_bin = Mat::zeros(src.size(), CV_8UC1);
 
@@ -54,6 +70,15 @@ bool draw_annotations(const char * file_name, Size sz, Mat & dst, string attribu
 	import_annotation(fr, attribute);
 	generate_polygon_mask(sz, img_mask, polygon_groups);
 	
+	dst = img_mask.clone();
+	return true;
+}
+
+bool draw_annotations(FileStorage & f, Size sz, Mat & dst, string attribute){
+	Mat img_mask;
+	import_annotation(f, attribute);
+	generate_polygon_mask(sz, img_mask, polygon_groups);
+
 	dst = img_mask.clone();
 	return true;
 }
@@ -98,7 +123,7 @@ int main(int argc, char *argv[], char *envp[])
 	annotated_class free_space(root, "free_space", 0, true);
 
 	FileStorage f_info;
-	string frame_yml = annotation_dir + "/frame.yml";
+	string frame_yml = root + "/frame.yml";
 	if (!f_info.open(frame_yml, FileStorage::READ)) return 0;
 	FileNode f_info_n = f_info["frame"];
 	FileNodeIterator f_it = f_info_n.begin();
@@ -123,20 +148,30 @@ int main(int argc, char *argv[], char *envp[])
 		sprintf_s(temp, 100, "%s/%08d.csv", saved_dir.c_str(), frame);
 		csv_file.open(temp, ios::out | ios::ate | ios::app);
 
-		Mat img_mask = Mat::zeros(img.size(), CV_8UC1);				
-		for (map<string,annotated_class*>::iterator it = ptr_class.begin(); it != ptr_class.end(); it++){			
-			annotated_class* it_class = it->second;			
-			draw_annotations(it_class->get_file_path(frame).c_str(), img.size(), it_class->img_mask, it_class->get_attribute());
+		Mat img_mask = Mat::zeros(img.size(), CV_8UC1);
+
+		FileStorage f;
+		char file_name[100];
+		sprintf_s(file_name, 100, "%s/annotations/%08d.yml", root.c_str(), frame);
+		if (!f.open(file_name, FileStorage::READ)) continue;		
+
+		FileNode fn=f["attribute"];		
+		for (FileNodeIterator it_fn = fn.begin(); it_fn != fn.end(); it_fn++){
+			string attribute = (*it_fn);
+			map<string, annotated_class*>::iterator it = ptr_class.find(attribute);
+			draw_annotations(f, img.size(), it->second->img_mask, attribute);
+
 			if (it->first == "marker"){
-				Rect roi((patch_x - roi_x + 1) / 2, (patch_y - roi_y + 1) / 2, roi_x, roi_y);			
-				it_class->generate_samples(img, Size(patch_x, patch_y), 0.75, roi);				
+				Rect roi((patch_x - roi_x + 1) / 2, (patch_y - roi_y + 1) / 2, roi_x, roi_y);
+				it->second->generate_samples(img, Size(patch_x, patch_y), 0.75, roi);
 			}
-			else{				
-				it_class->generate_samples(img, Size(patch_x, patch_y), 0.75);				
+			else{
+				it->second->generate_samples(img, Size(patch_x, patch_y), 0.75);
 			}
-			write_samples_on_csv(csv_file, it_class->samples, it_class->n_class);
+			write_samples_on_csv(csv_file, it->second->samples, it->second->n_class);
 			if ((it->second)->img_mask.data != NULL) bitwise_or(img_mask, (it->second)->img_mask, img_mask);
 		}
+
 		Rect ego_vehicle_mask = Rect(rect_ego.x + patch_x / 2, rect_ego.y + patch_y / 2, rect_ego.width - patch_x, rect_ego.height - patch_y);
 		Mat img_ego_mask = img_mask(ego_vehicle_mask);
 		img_ego_mask = 255;
