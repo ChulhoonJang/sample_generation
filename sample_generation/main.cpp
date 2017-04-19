@@ -135,24 +135,24 @@ int main(int argc, char *argv[], char *envp[])
 
 		// load image
 		Mat img, img_debug;
-		char image_path[100];
-		sprintf_s(image_path, 100, "%s/%08d.jpg", image_dir.c_str(), frame);
+		char image_path[200];
+		sprintf_s(image_path, 200, "%s/%08d.jpg", image_dir.c_str(), frame);
 		img = imread(image_path);
 		if (img.data == NULL) continue;
 		img_debug = img.clone();
 		rectangle(img_debug, rect_ego, CV_RGB(255, 0, 0));
 
 		// open csv
-		char temp[100];
+		char temp[200];
 		ofstream csv_file;
-		sprintf_s(temp, 100, "%s/%08d.csv", saved_dir.c_str(), frame);
+		sprintf_s(temp, 200, "%s/%08d.csv", saved_dir.c_str(), frame);
 		csv_file.open(temp, ios::out | ios::ate | ios::app);
 
 		Mat img_mask = Mat::zeros(img.size(), CV_8UC1);
 
 		FileStorage f;
-		char file_name[100];
-		sprintf_s(file_name, 100, "%s/annotations/%08d.yml", root.c_str(), frame);
+		char file_name[200];
+		sprintf_s(file_name, 200, "%s/annotations/%08d.yml", root.c_str(), frame);
 		if (!f.open(file_name, FileStorage::READ)) continue;		
 
 		FileNode fn=f["attribute"];		
