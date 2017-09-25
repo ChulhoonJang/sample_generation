@@ -92,35 +92,43 @@ void write_samples_on_csv(ofstream & csv_file, vector<Rect> & values, int n_clas
 int main(int argc, char *argv[], char *envp[])
 {
 	string root;
-	string image_dir, annotation_dir, attribute_1_dir, attribute_2_dir, attribute_3_dir;
-	string saved_dir, class_0_dir, class_1_dir, class_2_dir, class_3_dir;
-	int patch_x(24), patch_y(24), roi_x(5), roi_y(5);
+	string image_dir, annotation_dir;
+	string saved_dir, gt_dir;
+	//int patch_x(24), patch_y(24), roi_x(5), roi_y(5);
 	//Rect rect_ego(74, 54, 156, 52);
-	Rect rect_ego(77, 50, 157, 59);
+	Rect rect_ego(41, 47, 224, 63); // HG ego vehicle
+	//264, 109
 
 	if (argc < 2) return 0;
 	root = argv[1];	
-	patch_x = atoi(argv[2]);
-	patch_y = atoi(argv[2]);
+	//patch_x = atoi(argv[2]);
+	//patch_y = atoi(argv[2]);
 
 	image_dir = root + "/images";
 	annotation_dir = root + "/annotations";
 	saved_dir = root + "/samples";
+	gt_dir = root + "/gt_images";
+
 	_mkdir(saved_dir.c_str());
+	_mkdir(gt_dir.c_str());	
+
+	vector<int> params;
+	params.push_back(CV_IMWRITE_PNG_COMPRESSION);
+	params.push_back(0);
 
 	map<string, annotated_class*> ptr_class;
 	annotated_class* c;
 
-	c = new annotated_class(root, "marker", 1);
+	c = new annotated_class(root, "marker", 1, CV_RGB(255,255,255));
 	ptr_class.insert(pair<string, annotated_class*>("marker", c));
 
-	c = new annotated_class(root, "vehicle", 2);
+	c = new annotated_class(root, "vehicle", 2, CV_RGB(255, 0, 0));
 	ptr_class.insert(pair<string, annotated_class*>("vehicle", c));	
 
-	c = new annotated_class(root, "curb", 3);
+	c = new annotated_class(root, "curb", 3, CV_RGB(0, 255, 0));
 	ptr_class.insert(pair<string, annotated_class*>("curb", c));	
 	
-	annotated_class free_space(root, "free_space", 0, true);
+	annotated_class free_space(root, "free_space", 0, CV_RGB(0, 0, 255), true);
 
 	FileStorage f_info;
 	string frame_yml = root + "/frame.yml";
@@ -146,9 +154,10 @@ int main(int argc, char *argv[], char *envp[])
 		char temp[200];
 		ofstream csv_file;
 		sprintf_s(temp, 200, "%s/%08d.csv", saved_dir.c_str(), frame);
-		csv_file.open(temp, ios::out | ios::ate | ios::app);
+		//csv_file.open(temp, ios::out | ios::ate | ios::app);
 
 		Mat img_mask = Mat::zeros(img.size(), CV_8UC1);
+		Mat img_gt = Mat::zeros(img.size(), CV_8UC3);
 
 		FileStorage f;
 		char file_name[200];
@@ -160,25 +169,35 @@ int main(int argc, char *argv[], char *envp[])
 			string attribute = (*it_fn);
 			map<string, annotated_class*>::iterator it = ptr_class.find(attribute);
 			draw_annotations(f, img.size(), it->second->img_mask, attribute);
+			it->second->generate_gt_images();  
 
-			if (it->first == "marker"){
-				Rect roi((patch_x - roi_x + 1) / 2, (patch_y - roi_y + 1) / 2, roi_x, roi_y);
-				it->second->generate_samples(img, Size(patch_x, patch_y), 0.75, roi);
-			}
-			else{
-				it->second->generate_samples(img, Size(patch_x, patch_y), 0.75);
-			}
-			write_samples_on_csv(csv_file, it->second->samples, it->second->n_class);
+			//if (it->first == "marker"){
+			//	Rect roi((patch_x - roi_x + 1) / 2, (patch_y - roi_y + 1) / 2, roi_x, roi_y);
+			//	it->second->generate_samples(img, Size(patch_x, patch_y), 0.75, roi);
+			//}
+			//else{
+			//	it->second->generate_samples(img, Size(patch_x, patch_y), 0.75);
+			//}
+			//write_samples_on_csv(csv_file, it->second->samples, it->second->n_class);
 			if ((it->second)->img_mask.data != NULL) bitwise_or(img_mask, (it->second)->img_mask, img_mask);
+			if ((it->second)->img_gt.data != NULL) bitwise_or(img_gt, (it->second)->img_gt, img_gt);
 		}
 
-		Rect ego_vehicle_mask = Rect(rect_ego.x + patch_x / 2, rect_ego.y + patch_y / 2, rect_ego.width - patch_x, rect_ego.height - patch_y);
-		Mat img_ego_mask = img_mask(ego_vehicle_mask);
-		img_ego_mask = 255;
+		Mat img_ego_mask = img_mask(rect_ego);		
 
 		free_space.img_mask = ~img_mask.clone();
-		free_space.generate_random_samples(img, Size(patch_x, patch_y), 1.0, 1000);
-		write_samples_on_csv(csv_file, free_space.samples, free_space.n_class);
+		free_space.generate_gt_images();
+		bitwise_or(img_gt, free_space.img_gt, img_gt);
+
+		img_ego_mask = img_gt(rect_ego);
+		img_ego_mask = 255;
+
+		//free_space.generate_random_samples(img, Size(patch_x, patch_y), 1.0, 1000);
+		//write_samples_on_csv(csv_file, free_space.samples, free_space.n_class);
+
+		char gt_img_file[200];
+		sprintf_s(gt_img_file, "%s/%08d.png", gt_dir.c_str(), frame);
+		imwrite(gt_img_file, img_gt, params);
 
 		cout << image_path << endl;
 	}

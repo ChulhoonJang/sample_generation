@@ -1,7 +1,8 @@
 #include <time.h>
 #include "annotation_class.h"
+#include <opencv2\imgproc\imgproc.hpp>
 
-annotated_class::annotated_class(string p, string attr, int _n_class, bool mk_save_dir){
+annotated_class::annotated_class(string p, string attr, int _n_class, Scalar color, bool mk_save_dir){
 	path = p;
 	attribute = attr;
 	path_annotation = path + "/annotations/" + attribute;
@@ -15,6 +16,8 @@ annotated_class::annotated_class(string p, string attr, int _n_class, bool mk_sa
 	params.push_back(100);
 
 	n_class = _n_class;
+
+	gt_color = color;
 }
 
 annotated_class::~annotated_class(){
@@ -37,6 +40,16 @@ string annotated_class::get_file_path(const int frame){
 
 string annotated_class::get_attribute() { 
 	return attribute; 
+}
+
+void annotated_class::generate_gt_images(){
+	Mat bgr[3];
+	cvtColor(img_mask, img_gt, CV_GRAY2BGR);
+	split(img_gt, bgr);
+	bgr[0] = bgr[0] * gt_color[0];
+	bgr[1] = bgr[1] * gt_color[1];
+	bgr[2] = bgr[2] * gt_color[2];
+	merge(bgr, 3, img_gt);
 }
 
 void annotated_class::generate_samples(const Mat src, Size sz, double occupancy){
