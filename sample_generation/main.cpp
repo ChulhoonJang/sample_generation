@@ -96,7 +96,7 @@ int main(int argc, char *argv[], char *envp[])
 	string saved_dir, gt_dir;
 	//int patch_x(24), patch_y(24), roi_x(5), roi_y(5);
 	//Rect rect_ego(74, 54, 156, 52);
-	Rect rect_ego(41, 47, 224, 63); // HG ego vehicle
+	//Rect rect_ego(41, 47, 224, 63); // HG ego vehicle
 	//264, 109
 
 	if (argc < 2) return 0;
@@ -126,7 +126,10 @@ int main(int argc, char *argv[], char *envp[])
 	ptr_class.insert(pair<string, annotated_class*>("vehicle", c));	
 
 	c = new annotated_class(root, "curb", 3, CV_RGB(0, 255, 0));
-	ptr_class.insert(pair<string, annotated_class*>("curb", c));	
+	ptr_class.insert(pair<string, annotated_class*>("curb", c));
+
+	c = new annotated_class(root, "ego_vehicle", 3, CV_RGB(0, 0, 0));
+	ptr_class.insert(pair<string, annotated_class*>("ego_vehicle", c));
 	
 	annotated_class free_space(root, "free_space", 0, CV_RGB(0, 0, 255), true);
 
@@ -148,7 +151,7 @@ int main(int argc, char *argv[], char *envp[])
 		img = imread(image_path);
 		if (img.data == NULL) continue;
 		img_debug = img.clone();
-		rectangle(img_debug, rect_ego, CV_RGB(255, 0, 0));
+		//rectangle(img_debug, rect_ego, CV_RGB(255, 0, 0));
 
 		// open csv
 		char temp[200];
@@ -183,14 +186,14 @@ int main(int argc, char *argv[], char *envp[])
 			if ((it->second)->img_gt.data != NULL) bitwise_or(img_gt, (it->second)->img_gt, img_gt);
 		}
 
-		Mat img_ego_mask = img_mask(rect_ego);		
+		//Mat img_ego_mask = img_mask(rect_ego);		
 
 		free_space.img_mask = ~img_mask.clone();
 		free_space.generate_gt_images();
 		bitwise_or(img_gt, free_space.img_gt, img_gt);
 
-		img_ego_mask = img_gt(rect_ego);
-		img_ego_mask = 255;
+		//img_ego_mask = img_gt(rect_ego);
+		//img_ego_mask = 255;
 
 		//free_space.generate_random_samples(img, Size(patch_x, patch_y), 1.0, 1000);
 		//write_samples_on_csv(csv_file, free_space.samples, free_space.n_class);
